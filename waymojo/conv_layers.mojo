@@ -75,7 +75,7 @@ fn batch_norm_2d(
     
     return output
 
-struct Conv2DBlock:
+struct Conv2DBlock(Copyable, Movable):
     """Convolutional block with Conv2D + BatchNorm + LeakyReLU."""
     var conv_weight: Tensor[DT]
     var bn_weight: Tensor[DT]
@@ -126,6 +126,36 @@ struct Conv2DBlock:
             self.bn_running_mean[i] = 0.0
             self.bn_running_var[i] = 1.0
     
+    # Copy constructor to implement Copyable trait
+    fn __copyinit__(out self, existing: Self):
+        # Deep copy all tensor fields
+        self.conv_weight = existing.conv_weight.copy()
+        self.bn_weight = existing.bn_weight.copy()
+        self.bn_bias = existing.bn_bias.copy()
+        self.bn_running_mean = existing.bn_running_mean.copy()
+        self.bn_running_var = existing.bn_running_var.copy()
+        
+        # Copy primitive fields
+        self.in_channels = existing.in_channels
+        self.out_channels = existing.out_channels
+        self.kernel_size = existing.kernel_size
+        self.stride = existing.stride
+        self.padding = existing.padding
+    
+    # Add move constructor to implement Movable trait
+    fn __moveinit__(out self, owned existing: Self):
+        self.conv_weight = existing.conv_weight^
+        self.bn_weight = existing.bn_weight^
+        self.bn_bias = existing.bn_bias^
+        self.bn_running_mean = existing.bn_running_mean^
+        self.bn_running_var = existing.bn_running_var^
+        
+        self.in_channels = existing.in_channels
+        self.out_channels = existing.out_channels
+        self.kernel_size = existing.kernel_size
+        self.stride = existing.stride
+        self.padding = existing.padding
+    
     # Method with proper self syntax (not mutating self)
     fn forward(self, input: Tensor[DT], training: Bool = True) -> Tensor[DT]:
         """Forward pass through the convolutional block."""
@@ -140,6 +170,22 @@ struct Conv2DBlock:
         x = leaky_relu(x)
         
         return x
+
+    # Add copy method for explicit copying
+    fn copy(self) -> Self:
+        var result = Self(self.in_channels, self.out_channels, self.kernel_size, self.stride, self.padding)
+        
+        # Deep copy tensor values
+        for i in range(self.conv_weight.num_elements()):
+            result.conv_weight[i] = self.conv_weight[i]
+        
+        for i in range(self.out_channels):
+            result.bn_weight[i] = self.bn_weight[i]
+            result.bn_bias[i] = self.bn_bias[i]
+            result.bn_running_mean[i] = self.bn_running_mean[i]
+            result.bn_running_var[i] = self.bn_running_var[i]
+        
+        return result
 
 fn test_conv_layers() raises:
     """Test convolutional layers."""

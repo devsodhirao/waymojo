@@ -1,8 +1,10 @@
 # ===== yolov3_model.mojo =====
 from tensor import Tensor, TensorShape
 from algorithm import parallelize, vectorize
-from math import exp, sqrt, max, min
+from math import exp, sqrt
+from builtin.math import min, max
 from collections import List, Optional
+from time import perf_counter_ns
 
 alias DT = DType.float32
 
@@ -11,14 +13,14 @@ import conv_layers
 import matrix_ops
 import yolo_utils
 
-struct ResidualBlock:
+struct ResidualBlock(Copyable, Movable):
     """Residual block with two convolutional layers."""
     var conv1: conv_layers.Conv2DBlock
     var conv2: conv_layers.Conv2DBlock
     var downsample: Optional[conv_layers.Conv2DBlock]
     
     fn __init__(
-        inout self,
+        out self,
         in_channels: Int,
         out_channels: Int,
         stride: Int = 1
@@ -32,6 +34,33 @@ struct ResidualBlock:
         # Downsample if needed (for skip connection)
         if stride != 1 or in_channels != out_channels:
             self.downsample = conv_layers.Conv2DBlock(in_channels, out_channels, 1, stride, 0)
+        else:
+            self.downsample = None
+    
+    # Copy constructor for Copyable trait
+    fn __copyinit__(out self, existing: Self):
+        # Deep copy the Conv2DBlock objects
+        self.conv1 = existing.conv1.copy()
+        self.conv2 = existing.conv2.copy()
+        
+        # Handle Optional field properly
+        if existing.downsample:
+            var ds = existing.downsample.value().copy()
+            self.downsample = ds
+        else:
+            self.downsample = None
+    
+    # Move constructor for Movable trait
+    fn __moveinit__(out self, owned existing: Self):
+        # Move the Conv2DBlock objects
+        self.conv1 = existing.conv1^
+        self.conv2 = existing.conv2^
+        
+        # Handle Optional field properly for move
+        if existing.downsample:
+            # Get owned value from Optional
+            var ds_owned = existing.downsample.value()^
+            self.downsample = ds_owned
         else:
             self.downsample = None
     
@@ -63,7 +92,7 @@ struct Darknet53:
     var layer4: List[ResidualBlock]
     var layer5: List[ResidualBlock]
     
-    fn __init__(inout self):
+    fn __init__(out self):
         # Initial convolution
         self.conv1 = conv_layers.Conv2DBlock(3, 32, 3, 1, 1)
         
@@ -119,7 +148,9 @@ struct Darknet53:
     fn _forward_layer(self, layer: List[ResidualBlock], input: Tensor[DT], training: Bool) -> Tensor[DT]:
         """Forward pass through a layer of residual blocks."""
         var x = input
-        for block in layer:
+        # Iterate using indices to avoid pointer issues
+        for i in range(len(layer)):
+            var block = layer[i]
             x = block.forward(x, training)
         return x
 
@@ -131,7 +162,7 @@ struct YOLOv3Head:
     var num_classes: Int
     var num_anchors: Int
     
-    fn __init__(inout self, num_classes: Int):
+    fn __init__(out self, num_classes: Int):
         self.num_classes = num_classes
         self.num_anchors = 3  # 3 anchors per scale
         
@@ -188,7 +219,9 @@ struct YOLOv3Head:
         
         # Process largest scale (32x)
         var x32 = features[2]
-        for conv in self.conv_sets[0]:
+        # Use indexing to avoid pointer issues
+        for i in range(len(self.conv_sets[0])):
+            var conv = self.conv_sets[0][i]
             x32 = conv.forward(x32, training)
         
         var route_32 = x32
@@ -202,7 +235,9 @@ struct YOLOv3Head:
         var x16_concat = self.concatenate(x16_up, features[1])
         
         var x16 = x16_concat
-        for conv in self.conv_sets[1]:
+        # Use indexing to avoid pointer issues
+        for i in range(len(self.conv_sets[1])):
+            var conv = self.conv_sets[1][i]
             x16 = conv.forward(x16, training)
         
         var route_16 = x16
@@ -216,7 +251,9 @@ struct YOLOv3Head:
         var x8_concat = self.concatenate(x8_up, features[0])
         
         var x8 = x8_concat
-        for conv in self.conv_sets[2]:
+        # Use indexing to avoid pointer issues
+        for i in range(len(self.conv_sets[2])):
+            var conv = self.conv_sets[2][i]
             x8 = conv.forward(x8, training)
         
         var pred_8 = self.final_convs[4].forward(x8, training)
@@ -288,7 +325,7 @@ struct YOLOv3:
     var head: YOLOv3Head
     var num_classes: Int
     
-    fn __init__(inout self, num_classes: Int):
+    fn __init__(out self, num_classes: Int):
         self.num_classes = num_classes
         self.backbone = Darknet53()
         self.head = YOLOv3Head(num_classes)
