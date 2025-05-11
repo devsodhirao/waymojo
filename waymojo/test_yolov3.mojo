@@ -1,6 +1,6 @@
 # ===== test_yolov3.mojo =====
 from tensor import Tensor, TensorShape
-from time import now
+from time import perf_counter
 from collections import List
 
 alias DT = DType.float32
@@ -24,11 +24,11 @@ fn test_yolov3_model() raises:
     
     # Test forward pass
     print("Running forward pass...")
-    var start_time = now()
+    var start_time = perf_counter()
     var predictions = model.forward(input, training=False)
-    var end_time = now()
+    var end_time = perf_counter()
     
-    print("Forward pass completed in:", (end_time - start_time) / 1e6, "ms")
+    print("Forward pass completed in:", (end_time - start_time) * 1000, "ms")
     print("Number of prediction scales:", len(predictions))
     
     for i in range(len(predictions)):
@@ -36,11 +36,11 @@ fn test_yolov3_model() raises:
     
     # Test prediction pipeline
     print("\nTesting prediction pipeline...")
-    var pred_start_time = now()
+    var pred_start_time = perf_counter()
     var detections = model.predict(input, 0.5)
-    var pred_end_time = now()
+    var pred_end_time = perf_counter()
     
-    print("Prediction completed in:", (pred_end_time - pred_start_time) / 1e6, "ms")
+    print("Prediction completed in:", (pred_end_time - pred_start_time) * 1000, "ms")
     print("Number of detections:", len(detections))
 
 fn test_individual_components() raises:
@@ -91,12 +91,12 @@ fn benchmark_model() raises:
     var total_time: Float64 = 0.0
     
     for i in range(num_runs):
-        var start_time = now()
+        var start_time = perf_counter()
         _ = model.forward(input, training=False)
-        var end_time = now()
-        total_time += Float64(end_time - start_time)
+        var end_time = perf_counter()
+        total_time += (end_time - start_time)
     
-    var avg_time = total_time / Float64(num_runs * 1e6)  # Convert to ms
+    var avg_time = total_time / Float64(num_runs) * 1000  # Convert to ms
     var fps = 1000.0 / avg_time
     
     print("Average inference time:", avg_time, "ms")

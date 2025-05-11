@@ -4,7 +4,7 @@ from algorithm import parallelize, vectorize
 from math import exp, sqrt
 from builtin.math import min, max
 from collections import List, Optional
-from time import perf_counter_ns
+from time import perf_counter
 
 alias DT = DType.float32
 
@@ -56,13 +56,8 @@ struct ResidualBlock(Copyable, Movable):
         self.conv1 = existing.conv1^
         self.conv2 = existing.conv2^
         
-        # Handle Optional field properly for move
-        if existing.downsample:
-            # Get owned value from Optional
-            var ds_owned = existing.downsample.value()^
-            self.downsample = ds_owned
-        else:
-            self.downsample = None
+        # Use direct assignment for Optional field (will correctly handle the move)
+        self.downsample = existing.downsample^
     
     fn forward(self, input: Tensor[DT], training: Bool = True) -> Tensor[DT]:
         """Forward pass with residual connection."""
@@ -93,15 +88,29 @@ struct Darknet53:
     var layer5: List[ResidualBlock]
     
     fn __init__(out self):
-        # Initial convolution
+        # Initialize all fields
         self.conv1 = conv_layers.Conv2DBlock(3, 32, 3, 1, 1)
         
+        # Initialize empty lists for layers
+        self.layer1 = List[ResidualBlock]()
+        self.layer2 = List[ResidualBlock]()
+        self.layer3 = List[ResidualBlock]()
+        self.layer4 = List[ResidualBlock]()
+        self.layer5 = List[ResidualBlock]()
+        
         # Create residual layers
-        self.layer1 = self._make_layer(32, 64, 1, 2)   # 1 block, downsample
-        self.layer2 = self._make_layer(64, 128, 2, 2)  # 2 blocks, downsample
-        self.layer3 = self._make_layer(128, 256, 8, 2) # 8 blocks, downsample
-        self.layer4 = self._make_layer(256, 512, 8, 2) # 8 blocks, downsample
-        self.layer5 = self._make_layer(512, 1024, 4, 2) # 4 blocks, downsample
+        var layer1_blocks = self._make_layer(32, 64, 1, 2)   # 1 block, downsample
+        var layer2_blocks = self._make_layer(64, 128, 2, 2)  # 2 blocks, downsample
+        var layer3_blocks = self._make_layer(128, 256, 8, 2) # 8 blocks, downsample
+        var layer4_blocks = self._make_layer(256, 512, 8, 2) # 8 blocks, downsample
+        var layer5_blocks = self._make_layer(512, 1024, 4, 2) # 4 blocks, downsample
+        
+        # Assign blocks to the instance fields
+        self.layer1 = layer1_blocks
+        self.layer2 = layer2_blocks
+        self.layer3 = layer3_blocks
+        self.layer4 = layer4_blocks
+        self.layer5 = layer5_blocks
     
     fn _make_layer(
         self,

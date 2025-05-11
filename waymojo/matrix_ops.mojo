@@ -2,7 +2,7 @@
 from tensor import Tensor, TensorSpec, TensorShape
 from algorithm import parallelize, vectorize
 from builtin.math import min, max
-from time import perf_counter_ns
+from time import perf_counter
 
 alias DT = DType.float32
 alias SIMD_WIDTH = 8  # Fixed value instead of simdwidthof
@@ -116,9 +116,9 @@ fn test_matrix_ops() raises:
         B[i] = Float32((i * 13) % 100) / 100.0
     
     # Time the operation
-    var start_time = perf_counter_ns()
+    var start_time = perf_counter()
     var C = matmul_optimized(A, B)
-    var end_time = perf_counter_ns()
+    var end_time = perf_counter()
     
     print("Matrix multiplication completed in:", (end_time - start_time) / 1e6, "ms")
     print("Output shape:", C.shape())
