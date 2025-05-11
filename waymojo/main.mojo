@@ -1,51 +1,60 @@
-import sys
-import gpu
-from python import Python
-import conv
+# ===== main.mojo =====
+from tensor import Tensor, TensorSpec
+from algorithm import parallelize, vectorize
+from math import sqrt, exp
+import math_utils  # Use our custom math utilities instead of builtin and time
 
-def allocate_image_tensor[T: DType, C: Int32, H: Int32, W: Int32]
-(
-    ctx: gpu.host.DeviceContext,
-    fill_with_zeros: Bool = False
-) -> layout.LayoutTensor[T, layout.Layout.row_major(C, H, W)]:
-    """
-    Caller must ctx.synchronize() after this call, where necessary.
-    """
-    img_buffer = ctx.enqueue_create_buffer[T](C * H * W)
-    img_layout = layout.Layout.row_major(C, H, W)
-    img_tensor = layout.LayoutTensor[T, img_layout](img_buffer)
-    if fill_with_zeros:
-        ctx.enqueue_memset(img_buffer, T(0))
-    #:
-    return img_tensor
-#:allocate_image_tensor()
+# Import our modules (proper Mojo import syntax)
+import matrix_ops
+import conv_layers
+import yolo_utils
 
+fn main():
+    print("YOLOv3 Implementation in Mojo")
+    print("============================\n")
+    
+    # Run component tests
+    try:
+        run_component_tests()
+        print("\n✅ All tests passed!")
+    except e:
+        print("❌ Error:", e)
+    
+    print("\nYOLOv3 implementation completed!")
 
-def main():
-	@parameter
-	if not sys.has_accelerator():
-		raise Error("No accelerator found")
-	#:
-    np = Python.import_module("numpy")
-    pil = Python.import_module("PIL")
-    pil_img = pil.Image.open("test.png")
-    np_img = np.array(pil_img) 
-    alias W = <known image W>
-    alias H = <known image H>
-	alias C = 3 # RGB
-	alias DType = gpu.host.DType
-	alias MutableAnyOrigin = gpu.host.MutableAnyOrigin
+fn run_component_tests() raises:
+    """Run tests for individual components."""
+    print("Running component tests...")
+    
+    # Step 1: Test basic tensor operations
+    print("\nStep 1: Tensor Operations Test")
+    print("-----------------------------")
+    test_tensor_ops()
+    
+    # Step 2: Test matrix operations
+    print("\nStep 2: Matrix Operations Test")
+    print("-----------------------------")
+    matrix_ops.test_matrix_ops()
+    
+    # Step 3: Test convolutional layers
+    print("\nStep 3: Conv Layer Test")
+    print("----------------------")
+    conv_layers.test_conv_layers()
+    
+    # Step 4: Test utility functions
+    print("\nStep 4: YOLO Utils Test")
+    print("----------------------")
+    yolo_utils.test_utils()
 
-	# Convert to float32
-	np_img = np_img.astype(np.float32)
-	# Normalize to [0, 1]
-	np_img /= 255.0
-	img_tensor = layout.LayoutTensor[DType.uint8, layout.Layout.row_major(3, H, W)](np_img.unsafe_ptr())
-	ctx = gpu.host.DeviceContext()	
-	img_tensor_gpu = allocate_image_tensor[DType.uint8, 3, H, W](ctx)
-    ctx.enqueue_copy(img_tensor, img_tensor_gpu)
-
-	kernel = <import convolution kernel weights>
-	conv.enqueue_convolution[DType.Float32, W, H, C, 3, 3, 32](ctx, img_tensor_gpu, output_tensor_gpu, kernel)
-
-#:main()
+fn test_tensor_ops() raises:
+    """Test basic tensor operations."""
+    # Create a test tensor
+    var spec = TensorSpec(DType.float32, 2, 3, 4)
+    var tensor = Tensor[DType.float32](spec)
+    
+    # Initialize with values
+    for i in range(tensor.num_elements()):
+        tensor[i] = Float32(i)
+    
+    print("Created tensor with shape:", tensor.shape())
+    print("First few elements:", tensor[0], tensor[1], tensor[2])
